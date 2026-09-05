@@ -1,0 +1,51 @@
+name: Publicar CHRONOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chronos-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Obtener la edición verificada
+        run: |
+          curl --fail --location --retry 3 --output chronos.zip https://github.com/mguerreroz-rgb/chronos/releases/download/v5.2-web.1/CHRONOS-web-fuentes.zip
+          echo 'fc586a9a8177486689820f3cb07de842b400d62370de2690cd053bb8f9b87daf  chronos.zip' | sha256sum --check --strict
+          unzip -q chronos.zip -d website
+      - name: Preparar y comprobar el sitio
+        working-directory: website
+        run: |
+          node scripts/build.mjs
+          node scripts/check.mjs
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Preparar los archivos de la página
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: website/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
